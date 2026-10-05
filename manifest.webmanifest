@@ -1,0 +1,10 @@
+{
+  "name": "オフライン音声認識 検証",
+  "short_name": "STT検証",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#E9EEF2",
+  "theme_color": "#E9EEF2",
+  "lang": "ja"
+}
