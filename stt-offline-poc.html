@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="STT検証">
+<meta name="theme-color" content="#E9EEF2">
+<title>オフライン音声認識 検証</title>
+<style>
+  :root{
+    --bg:#E9EEF2; --panel:#FFFFFF; --ink:#18242F; --sub:#5A6874; --line:#CBD4DC;
+    --blue:#1F4F96; --blue-soft:#DCE6F4;
+    --ok:#1E6E47; --ok-soft:#DDF0E5; --ng:#A8261D; --ng-soft:#F7E0DE; --warn:#8C5A00; --warn-soft:#F6EBD3;
+    --r-lg:14px; --r-sm:8px;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI",sans-serif;
+    font-size:16px;line-height:1.55;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+  main{max-width:640px;margin:0 auto;padding:20px 16px 48px}
+  h1{font-size:22px;line-height:1.3;margin:4px 0 4px;letter-spacing:.01em}
+  .lead{color:var(--sub);font-size:14px;margin:0 0 16px}
+  h2{font-size:17px;margin:0 0 4px}
+  .hint{font-size:13px;color:var(--sub);margin:0 0 12px}
+  section{background:var(--panel);border-radius:var(--r-lg);padding:16px;margin:0 0 14px;border:1px solid var(--line)}
+
+  /* environment */
+  .env{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .env div{border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 10px}
+  .env b{display:block;font-size:12px;color:var(--sub);font-weight:500}
+  .env span{font-weight:600;font-size:15px}
+  .is-ok{color:var(--ok)} .is-ng{color:var(--ng)} .is-warn{color:var(--warn)}
+
+  /* pipeline (the one memorable element) */
+  .pipe{display:flex;gap:4px;margin:4px 0 12px}
+  .pipe div{flex:1;text-align:center;font-size:12px;padding:10px 2px;border-radius:6px;background:#EEF2F5;color:var(--sub);transition:background .2s,color .2s}
+  .pipe div.on{background:var(--blue);color:#fff}
+  .pipe div.done{background:var(--blue-soft);color:var(--blue)}
+  .pipe div.fail{background:var(--ng);color:#fff}
+  @media (prefers-reduced-motion:reduce){.pipe div{transition:none}}
+
+  .transcript{min-height:64px;border:1px dashed var(--line);border-radius:var(--r-sm);padding:10px 12px;font-size:18px;margin-bottom:10px;word-break:break-word}
+  .transcript .interim{color:var(--sub)}
+  .transcript .empty{color:var(--sub);font-size:14px}
+  .prompt{background:var(--blue-soft);color:var(--blue);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:10px;font-size:15px}
+
+  label.f{display:block;font-size:13px;color:var(--sub);margin:0 0 4px}
+  select,input[type=number]{width:100%;font-size:16px;padding:9px 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:#fff;color:var(--ink)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+  .check{display:flex;gap:8px;align-items:center;font-size:14px;margin:0 0 12px}
+  .check input{width:20px;height:20px}
+
+  button{font:inherit;font-weight:600;border:0;border-radius:var(--r-sm);padding:14px 16px;cursor:pointer;width:100%;touch-action:manipulation}
+  .primary{background:var(--blue);color:#fff}
+  .secondary{background:#fff;color:var(--blue);border:1.5px solid var(--blue)}
+  .tap{background:var(--ok);color:#fff;font-size:18px;padding:18px}
+  button:disabled{opacity:.45;cursor:default}
+  button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid #7FA6E0;outline-offset:2px}
+  .row{display:flex;gap:8px}
+  .row>*{flex:1}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--sub);font-weight:500}
+  .tag{display:inline-block;padding:1px 8px;border-radius:99px;font-weight:600;font-size:12px}
+  .tag.ok{background:var(--ok-soft);color:var(--ok)}
+  .tag.ng{background:var(--ng-soft);color:var(--ng)}
+  .tag.warn{background:var(--warn-soft);color:var(--warn)}
+
+  .log{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;line-height:1.5;background:#F4F6F8;border-radius:var(--r-sm);padding:10px;height:220px;overflow:auto;white-space:pre-wrap;word-break:break-all;margin-bottom:10px}
+  ol.steps{padding-left:20px;margin:0;font-size:14px}
+  ol.steps li{margin-bottom:6px}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<main>
+  <h1>オフライン音声認識 検証</h1>
+  <p class="lead">iPhone / iPad の Safari で、ネット接続なしに英語の音声認識ができるかを確かめるページです。</p>
+
+  <section>
+    <h2>検証の手順</h2>
+    <ol class="steps">
+      <li>オンラインのまま一度「単体テスト」を実行し、マイクと音声認識の許可を出す</li>
+      <li>このページを開いたまま機内モードにする(Wi-Fiもオフ)</li>
+      <li>「単体テスト」と「読み上げ→認識テスト」を実行する</li>
+      <li>ホーム画面に追加して起動し、同じことを繰り返す</li>
+      <li>最後に「結果をコピー」で記録を共有する</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>この端末の状態</h2>
+    <p class="hint">接続状態は自動で更新されます。</p>
+    <div class="env" id="env"></div>
+  </section>
+
+  <section>
+    <h2>単体テスト</h2>
+    <p class="hint">ボタンを押して、英語で一文話してください。例: "I'd like to schedule a meeting next Tuesday."</p>
+    <div class="pipe" id="pipe1"></div>
+    <div class="transcript" id="tx1"><span class="empty">ここに認識結果が表示されます</span></div>
+    <div class="row">
+      <button class="primary" id="btnSingle">話す</button>
+      <button class="secondary" id="btnStop1" disabled>止める</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>読み上げ→認識テスト</h2>
+    <p class="hint">相手役の英語を読み上げた直後に認識を始め、止まらずに続くかを確かめます。会話アプリと同じ流れです。</p>
+    <div class="grid2">
+      <div>
+        <label class="f" for="playMode">読み上げの方式</label>
+        <select id="playMode">
+          <option value="tts">音声合成(speechSynthesis)</option>
+          <option value="audio">効果音(audio要素)</option>
+          <option value="none">読み上げなし</option>
+        </select>
+      </div>
+      <div>
+        <label class="f" for="startMode">認識の開始</label>
+        <select id="startMode">
+          <option value="auto">読み上げ後に自動</option>
+          <option value="tap">読み上げ後にタップ</option>
+        </select>
+      </div>
+      <div>
+        <label class="f" for="delay">開始までの待ち時間</label>
+        <select id="delay">
+          <option value="0">0 ms</option>
+          <option value="300" selected>300 ms</option>
+          <option value="800">800 ms</option>
+          <option value="1500">1500 ms</option>
+        </select>
+      </div>
+      <div>
+        <label class="f" for="rounds">往復回数</label>
+        <select id="rounds">
+          <option>1</option><option selected>3</option><option>5</option>
+        </select>
+      </div>
+    </div>
+    <label class="f" for="voice">読み上げの声</label>
+    <select id="voice" style="margin-bottom:8px"></select>
+    <label class="check"><input type="checkbox" id="localOnly" checked> 端末内の声だけを表示する</label>
+
+    <div class="pipe" id="pipe2"></div>
+    <div class="prompt hidden" id="prompt2"></div>
+    <div class="transcript" id="tx2"><span class="empty">ここに認識結果が表示されます</span></div>
+    <button class="tap hidden" id="btnTap" style="margin-bottom:8px">タップして話す</button>
+    <div class="row">
+      <button class="primary" id="btnLoop">テストを始める</button>
+      <button class="secondary" id="btnStop2" disabled>中止</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>結果</h2>
+    <p class="hint">テストごとに条件と結果が記録されます。</p>
+    <table>
+      <thead><tr><th>接続</th><th>起動</th><th>条件</th><th>結果</th></tr></thead>
+      <tbody id="results"><tr><td colspan="4" style="color:var(--sub)">まだ記録はありません。上のテストを実行してください。</td></tr></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>イベントログ</h2>
+    <div class="log" id="log"></div>
+    <div class="row">
+      <button class="primary" id="btnCopy">結果をコピー</button>
+      <button class="secondary" id="btnClear">記録を消す</button>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const T0 = performance.now();
+  const results = [];
+  const PROMPTS = [
+    "Thanks for joining the call today. Could you briefly introduce yourself?",
+    "What would be a good time for our next meeting?",
+    "Could you walk me through the current project status?",
+    "Do you have any concerns about the proposed timeline?",
+    "How would you like to proceed with the budget discussion?"
+  ];
+  const STAGES = ["読み上げ","待機","認識開始","音声検出","結果"];
+
+  // ---------- logging ----------
+  function log(msg, kind){
+    const t = ((performance.now()-T0)/1000).toFixed(2).padStart(7," ");
+    const line = `${t}s ${kind ? "["+kind+"] " : ""}${msg}`;
+    const el = $("log"); el.textContent += line + "\n"; el.scrollTop = el.scrollHeight;
+  }
+
+  // ---------- environment ----------
+  function standalone(){
+    return window.navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
+  }
+  function env(){
+    return {
+      online: navigator.onLine,
+      mode: standalone() ? "ホーム画面アプリ" : "Safariタブ",
+      secure: window.isSecureContext,
+      sr: !!SR,
+      local: !!(SR && "processLocally" in SR.prototype),
+      tts: "speechSynthesis" in window
+    };
+  }
+  function renderEnv(){
+    const e = env();
+    const cell = (label, val, cls) => `<div><b>${label}</b><span class="${cls}">${val}</span></div>`;
+    $("env").innerHTML =
+      cell("ネット接続", e.online ? "オンライン" : "オフライン", e.online ? "is-warn" : "is-ok") +
+      cell("起動形態", e.mode, "") +
+      cell("安全な接続(HTTPS)", e.secure ? "はい" : "いいえ", e.secure ? "is-ok" : "is-ng") +
+      cell("音声認識API", e.sr ? "あり" : "なし", e.sr ? "is-ok" : "is-ng") +
+      cell("ローカル処理指定", e.local ? "対応" : "非対応(既定動作)", e.local ? "is-ok" : "") +
+      cell("音声合成", e.tts ? "あり" : "なし", e.tts ? "is-ok" : "is-ng");
+  }
+  window.addEventListener("online", () => { renderEnv(); log("接続: オンライン"); });
+  window.addEventListener("offline", () => { renderEnv(); log("接続: オフライン"); });
+
+  // ---------- pipeline UI ----------
+  function initPipe(id){ $(id).innerHTML = STAGES.map(s => `<div>${s}</div>`).join(""); }
+  function setPipe(id, idx, state){
+    const cells = $(id).children;
+    for (let i=0;i<cells.length;i++){
+      cells[i].className = "";
+      if (state === "reset") continue;
+      if (i < idx) cells[i].className = "done";
+      if (i === idx) cells[i].className = state === "fail" ? "fail" : (state === "done" ? "done" : "on");
+    }
+  }
+
+  // ---------- recognition core ----------
+  // Runs one recognition and resolves with {outcome, text, detail, ms}
+  let currentRec = null;
+  function recognizeOnce(pipeId, txId, stageOffset){
+    return new Promise(resolve => {
+      if (!SR){ resolve({outcome:"ng", detail:"音声認識APIなし"}); return; }
+      const rec = new SR();
+      currentRec = rec;
+      rec.lang = "en-US";
+      rec.interimResults = true;
+      rec.continuous = false;
+      rec.maxAlternatives = 3;
+      if ("processLocally" in rec) { try { rec.processLocally = true; } catch(_){} }
+
+      let gotStart=false, finalText="", interim="", errorCode=null, speechEndAt=null, settled=false;
+      const tStart = performance.now();
+      const finish = (r) => {
+        if (settled) return; settled = true;
+        clearTimeout(startWatch); clearTimeout(hangWatch);
+        currentRec = null; resolve(r);
+      };
+      const tx = $(txId);
+      const paint = () => {
+        tx.innerHTML = (finalText || interim)
+          ? `${esc(finalText)}<span class="interim">${esc(interim)}</span>`
+          : `<span class="empty">話してください…</span>`;
+      };
+      paint();
+
+      const startWatch = setTimeout(() => {
+        if (!gotStart){ log("開始イベントが4秒以内に来ない","警告"); try{rec.abort();}catch(_){}
+          setPipe(pipeId, stageOffset, "fail");
+          finish({outcome:"ng", detail:"開始せず(4秒)"}); }
+      }, 4000);
+      const hangWatch = setTimeout(() => {
+        log("15秒以内に終了しない → 停止とみなす","警告"); try{rec.abort();}catch(_){}
+        setPipe(pipeId, stageOffset+1, "fail");
+        finish({outcome:"hang", text:finalText, detail:"ハング(15秒)"});
+      }, 15000);
+
+      rec.onstart = () => { gotStart = true; log("start","認識"); setPipe(pipeId, stageOffset, "on"); };
+      rec.onaudiostart = () => log("audiostart","認識");
+      rec.onsoundstart = () => log("soundstart","認識");
+      rec.onspeechstart = () => { log("speechstart","認識"); setPipe(pipeId, stageOffset+1, "on"); };
+      rec.onspeechend = () => { speechEndAt = performance.now(); log("speechend","認識"); };
+      rec.onaudioend = () => log("audioend","認識");
+      rec.onnomatch = () => log("nomatch","認識");
+      rec.onresult = (ev) => {
+        interim = "";
+        for (let i = ev.resultIndex; i < ev.results.length; i++){
+          const r = ev.results[i];
+          if (r.isFinal){
+            finalText += r[0].transcript;
+            const alts = Array.from(r).map(a => `"${a.transcript.trim()}"(${(a.confidence||0).toFixed(2)})`).join(" / ");
+            log(`final: ${alts}`,"認識");
+          } else interim += r[0].transcript;
+        }
+        paint();
+      };
+      rec.onerror = (ev) => {
+        errorCode = ev.error;
+        log(`error: ${ev.error}${ev.message ? " / "+ev.message : ""}`,"エラー");
+      };
+      rec.onend = () => {
+        const ms = speechEndAt ? Math.round(performance.now()-speechEndAt) : null;
+        log(`end (${Math.round(performance.now()-tStart)}ms)`,"認識");
+        if (finalText || interim){
+          finalText = finalText || interim; interim = ""; paint();
+          setPipe(pipeId, stageOffset+2, "done");
+          finish({outcome:"ok", text:finalText.trim(), detail: ms!=null ? `発話終了→確定 ${ms}ms` : "", ms});
+        } else {
+          setPipe(pipeId, stageOffset+1, "fail");
+          tx.innerHTML = `<span class="empty">認識できませんでした${errorCode ? "("+esc(errorCode)+")" : ""}</span>`;
+          finish({outcome:"ng", detail: errorCode ? `エラー: ${errorCode}` : "結果なし"});
+        }
+      };
+
+      try { rec.start(); log("rec.start() 呼び出し","認識"); }
+      catch(e){ log("start例外: "+e.message,"エラー"); setPipe(pipeId, stageOffset, "fail");
+        finish({outcome:"ng", detail:"start例外: "+e.name}); }
+    });
+  }
+  function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+  // ---------- results ----------
+  function record(test, cond, r){
+    const e = env();
+    const row = { conn: e.online ? "オンライン" : "オフライン", mode: e.mode, test, cond, ...r };
+    results.push(row); renderResults();
+  }
+  function renderResults(){
+    if (!results.length){ $("results").innerHTML = `<tr><td colspan="4" style="color:var(--sub)">まだ記録はありません。上のテストを実行してください。</td></tr>`; return; }
+    const label = {ok:["ok","成功"], ng:["ng","失敗"], hang:["warn","ハング"]};
+    $("results").innerHTML = results.map(r => {
+      const [cls, txt] = label[r.outcome];
+      return `<tr><td>${r.conn}</td><td>${r.mode}</td><td>${esc(r.test)}<br><span style="color:var(--sub)">${esc(r.cond)}</span></td>
+        <td><span class="tag ${cls}">${txt}</span><br><span style="color:var(--sub)">${esc(r.detail||"")}${r.text ? "<br>“"+esc(r.text)+"”" : ""}</span></td></tr>`;
+    }).join("");
+  }
+
+  // ---------- single test ----------
+  $("btnSingle").onclick = async () => {
+    $("btnSingle").disabled = true; $("btnStop1").disabled = false;
+    initPipe("pipe1"); setPipe("pipe1", 2, "on");
+    $("pipe1").children[0].className = "done"; $("pipe1").children[1].className = "done";
+    log("--- 単体テスト開始 ---");
+    const r = await recognizeOnce("pipe1", "tx1", 2);
+    record("単体", "-", r);
+    $("btnSingle").disabled = false; $("btnStop1").disabled = true;
+  };
+  $("btnStop1").onclick = () => { if (currentRec) currentRec.stop(); };
+
+  // ---------- voices ----------
+  let voices = [];
+  function loadVoices(){
+    if (!("speechSynthesis" in window)) return;
+    voices = speechSynthesis.getVoices().filter(v => /^en[-_]/i.test(v.lang));
+    const localOnly = $("localOnly").checked;
+    const list = voices.filter(v => !localOnly || v.localService);
+    const sel = $("voice"); const prev = sel.value;
+    sel.innerHTML = list.length
+      ? list.map(v => `<option value="${esc(v.voiceURI)}">${esc(v.name)} (${v.lang})${v.localService ? "" : " ※ネット"}</option>`).join("")
+      : `<option value="">英語の声が見つかりません</option>`;
+    const pref = list.find(v => v.voiceURI === prev) || list.find(v => v.lang === "en-US") || list[0];
+    if (pref) sel.value = pref.voiceURI;
+  }
+  if ("speechSynthesis" in window){
+    loadVoices(); speechSynthesis.onvoiceschanged = loadVoices;
+  }
+  $("localOnly").onchange = loadVoices;
+
+  // ---------- playback ----------
+  function speak(text){
+    return new Promise(resolve => {
+      const u = new SpeechSynthesisUtterance(text);
+      const v = voices.find(x => x.voiceURI === $("voice").value);
+      if (v){ u.voice = v; u.lang = v.lang; } else u.lang = "en-US";
+      u.rate = 1.0;
+      let started = false, done = false;
+      const end = (why) => { if (done) return; done = true; clearTimeout(fallback); clearTimeout(noStart); log("読み上げ終了: "+why,"再生"); resolve(why); };
+      // iOS sometimes fails to fire onend; estimate a ceiling
+      const fallback = setTimeout(() => end("タイムアウト(onend未発火)"), text.length*90 + 4000);
+      const noStart = setTimeout(() => { if (!started) end("開始せず"); }, 3000);
+      u.onstart = () => { started = true; log("読み上げ開始","再生"); };
+      u.onend = () => end("onend");
+      u.onerror = (e) => end("error "+e.error);
+      speechSynthesis.cancel();
+      speechSynthesis.speak(u);
+    });
+  }
+  let beepUrl = null;
+  function makeBeep(){
+    const sr = 22050, dur = 0.7, n = Math.floor(sr*dur);
+    const buf = new ArrayBuffer(44 + n*2), dv = new DataView(buf);
+    const w = (o,s) => { for (let i=0;i<s.length;i++) dv.setUint8(o+i, s.charCodeAt(i)); };
+    w(0,"RIFF"); dv.setUint32(4,36+n*2,true); w(8,"WAVE"); w(12,"fmt ");
+    dv.setUint32(16,16,true); dv.setUint16(20,1,true); dv.setUint16(22,1,true);
+    dv.setUint32(24,sr,true); dv.setUint32(28,sr*2,true); dv.setUint16(32,2,true); dv.setUint16(34,16,true);
+    w(36,"data"); dv.setUint32(40,n*2,true);
+    for (let i=0;i<n;i++){
+      const env = Math.min(1, i/800, (n-i)/800);
+      dv.setInt16(44+i*2, Math.sin(2*Math.PI*660*i/sr)*0.35*env*32767, true);
+    }
+    return URL.createObjectURL(new Blob([buf], {type:"audio/wav"}));
+  }
+  function playBeep(){
+    return new Promise(resolve => {
+      beepUrl = beepUrl || makeBeep();
+      const a = new Audio(beepUrl);
+      const t = setTimeout(() => { log("効果音: onended未発火","再生"); resolve(); }, 3000);
+      a.onended = () => { clearTimeout(t); log("効果音終了","再生"); resolve(); };
+      a.play().then(() => log("効果音開始","再生")).catch(e => { clearTimeout(t); log("効果音再生失敗: "+e.message,"エラー"); resolve(); });
+    });
+  }
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  function waitTap(){
+    return new Promise(resolve => {
+      const b = $("btnTap"); b.classList.remove("hidden");
+      b.onclick = () => { b.classList.add("hidden"); resolve(); };
+    });
+  }
+
+  // ---------- loop test ----------
+  let aborted = false;
+  $("btnLoop").onclick = async () => {
+    aborted = false;
+    const play = $("playMode").value, start = $("startMode").value;
+    const delay = +$("delay").value, rounds = +$("rounds").value;
+    const condBase = `${$("playMode").selectedOptions[0].text} / ${start==="auto"?"自動":"タップ"} / ${delay}ms`;
+    $("btnLoop").disabled = true; $("btnStop2").disabled = false;
+    log(`--- 読み上げ→認識テスト開始: ${condBase} x${rounds} ---`);
+
+    for (let i=0; i<rounds && !aborted; i++){
+      initPipe("pipe2");
+      const text = PROMPTS[i % PROMPTS.length];
+      $("prompt2").classList.remove("hidden"); $("prompt2").textContent = `${i+1}/${rounds}  ${text}`;
+      $("tx2").innerHTML = `<span class="empty">相手役の発話のあと、英語で答えてください</span>`;
+
+      setPipe("pipe2", 0, "on");
+      if (play === "tts") await speak(text);
+      else if (play === "audio") await playBeep();
+      if (aborted) break;
+
+      setPipe("pipe2", 1, "on");
+      if (start === "tap") await waitTap();
+      else await wait(delay);
+      if (aborted) break;
+
+      const r = await recognizeOnce("pipe2", "tx2", 2);
+      record("読み上げ→認識", `${condBase} (${i+1}/${rounds})`, r);
+      if (i < rounds-1) await wait(800);
+    }
+    $("btnTap").classList.add("hidden");
+    $("btnLoop").disabled = false; $("btnStop2").disabled = true;
+    log("--- テスト終了 ---");
+  };
+  $("btnStop2").onclick = () => {
+    aborted = true;
+    if ("speechSynthesis" in window) speechSynthesis.cancel();
+    if (currentRec) try { currentRec.abort(); } catch(_){}
+    $("btnTap").classList.add("hidden");
+    log("中止しました");
+  };
+
+  // ---------- copy / clear ----------
+  $("btnCopy").onclick = async () => {
+    const e = env();
+    const lines = [
+      "# STT検証結果", `日時: ${new Date().toLocaleString("ja-JP")}`,
+      `UA: ${navigator.userAgent}`,
+      `HTTPS: ${e.secure} / 音声認識API: ${e.sr} / processLocally: ${e.local}`,
+      "", "## 結果",
+      ...results.map(r => `${r.conn}\t${r.mode}\t${r.test}\t${r.cond}\t${r.outcome}\t${r.detail||""}\t${r.text||""}`),
+      "", "## ログ", $("log").textContent
+    ];
+    const text = lines.join("\n");
+    try { await navigator.clipboard.writeText(text); $("btnCopy").textContent = "コピーしました"; }
+    catch(_){
+      const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta);
+      ta.select(); document.execCommand("copy"); ta.remove(); $("btnCopy").textContent = "コピーしました";
+    }
+    setTimeout(() => $("btnCopy").textContent = "結果をコピー", 2000);
+  };
+  $("btnClear").onclick = () => { results.length = 0; renderResults(); $("log").textContent = ""; };
+
+  // ---------- init ----------
+  renderEnv(); initPipe("pipe1"); initPipe("pipe2");
+  log(`起動: ${env().mode} / ${navigator.onLine ? "オンライン" : "オフライン"}`);
+  if (!SR) log("この環境では音声認識APIが使えません","警告");
+  if (!window.isSecureContext) log("HTTPSではないため、マイクや音声認識が動きません","警告");
+})();
+</script>
+</body>
+</html>
