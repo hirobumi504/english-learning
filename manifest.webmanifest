@@ -1,10 +1,10 @@
 {
-  "name": "オフライン音声認識 検証",
-  "short_name": "STT検証",
+  "name": "会議英語トレーナー",
+  "short_name": "会議英語",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#E9EEF2",
-  "theme_color": "#E9EEF2",
+  "background_color": "#EEF2F0",
+  "theme_color": "#EEF2F0",
   "lang": "ja"
 }
